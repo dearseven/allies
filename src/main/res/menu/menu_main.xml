@@ -1,0 +1,20 @@
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:context="cc.m2u.allisee.activity.MainActivity">
+    <item
+        android:id="@+id/sys_img"
+        android:orderInCategory="100"
+        android:title="显示系统图片"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/qq_img"
+        android:orderInCategory="100"
+        android:title="显示QQ聊天图片"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/wx_img"
+        android:orderInCategory="100"
+        android:title="显示微信聊天图片"
+        app:showAsAction="never" />
+</menu>
