@@ -14,18 +14,25 @@ import android.support.v7.widget.StaggeredGridLayoutManager;
 import android.util.Log;
 import android.view.View;
 
+import cc.m2u.allisee.R;
+
 /**
  * 分割线 for gridview @author zhy
  */
 public class DividerGridItemDecoration extends RecyclerView.ItemDecoration {
 
     private static final int[] ATTRS = new int[]{android.R.attr.listDivider};
+    //private static final int[] ATTRS = new int[]{R.drawable.line};
+
     private Drawable mDivider;
 
     public DividerGridItemDecoration(Context context) {
-        final TypedArray a = context.obtainStyledAttributes(ATTRS);
-        mDivider = a.getDrawable(0);
-        a.recycle();
+//        final TypedArray a = context.obtainStyledAttributes(ATTRS);
+//        mDivider = a.getDrawable(0);
+//        a.recycle();
+
+        mDivider = context.getResources().getDrawable(R.drawable.line);
+
     }
 
     @Override
@@ -134,6 +141,11 @@ public class DividerGridItemDecoration extends RecyclerView.ItemDecoration {
             }
         }
         return false;
+    }
+
+    @Override
+    public void getItemOffsets(Rect outRect, View view, RecyclerView parent, RecyclerView.State state) {
+        super.getItemOffsets(outRect, view, parent, state);
     }
 
     @Override

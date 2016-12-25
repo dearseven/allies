@@ -4,6 +4,8 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Message;
 import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
 import android.support.v7.app.AppCompatActivity;
@@ -20,15 +22,18 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 
 import cc.m2u.allisee.R;
 import cc.m2u.allisee.beans.FileDes;
 import cc.m2u.allisee.utils.BitmapHelper;
 import cc.m2u.allisee.utils.FileCatcher;
+import cc.m2u.allisee.utils.LRUImageCache;
 import cc.m2u.allisee.views.WaterfallRecyclerView;
+import cc.m2u.allisee.views.animator.MyItemAnimator;
 import cc.m2u.allisee.views.dividers.DividerGridItemDecoration;
-import cc.m2u.allisee.views.dividers.SpacesItemDecoration;
 
 public class MainActivity extends AppCompatActivity {
     private FileCatcher fileCatcher = new FileCatcher();
@@ -38,6 +43,8 @@ public class MainActivity extends AppCompatActivity {
      * 0显示除了qq和微信聊天缓存的图片 <br/>1qq聊天图片<br/>2微信图片
      */
     private int showStauts = 0;
+
+    private LRUImageCache cache=new LRUImageCache();
 
 
     @Override
@@ -69,6 +76,20 @@ public class MainActivity extends AppCompatActivity {
         //
         recyclerView = (WaterfallRecyclerView) findViewById(R.id.main_recyclerview);
         recyclerView.setLayoutManager(new StaggeredGridLayoutManager(3, StaggeredGridLayoutManager.VERTICAL));
+        MyItemAnimator animator = new MyItemAnimator();
+        animator.setAddDuration(500);
+        animator.setRemoveDuration(500);
+        animator.setContext(this);
+        recyclerView.setItemAnimator(animator);
+        //recyclerView.setItemAnimator(new DefaultItemAnimator());
+
+
+        //adapter
+        adapter = new WaterfallAdapter();
+        recyclerView.setAdapter(adapter);
+        //设置item之间的间隔
+        DividerGridItemDecoration decoration = new DividerGridItemDecoration(this);
+        recyclerView.addItemDecoration(decoration);
     }
 
     private class WaterfallAdapter extends RecyclerView.Adapter<ViewHolder> {
@@ -84,15 +105,22 @@ public class MainActivity extends AppCompatActivity {
             FileDes fd = fileCatcher.files.get(position);
             if (fd.fileType == FileDes.FILE_TYPE.sys_img || fd.fileType == FileDes.FILE_TYPE.qq_img
                     || fd.fileType == FileDes.FILE_TYPE.wx_img) {
-                holder.imageView.setImageBitmap(BitmapHelper.loadBitmap(fd.filePath));
+                if(cache.getBitmapFromMemCache(fd.filePath)==null){
+                    cache.addBitmapToMemoryCache(fd.filePath,BitmapHelper.loadBitmap(fd.filePath));
+                }
+                holder.imageView.setImageBitmap(cache.getBitmapFromMemCache(fd.filePath));
             } else if (fd.fileType == FileDes.FILE_TYPE.sys_video) {
                 holder.imageView.setImageBitmap(fd.thumb);
             } else if (fd.fileType == FileDes.FILE_TYPE.wx_img) {
-                holder.imageView.setImageBitmap(BitmapHelper.loadBitmap(fd.filePath));
+                if(cache.getBitmapFromMemCache(fd.filePath)==null){
+                    cache.addBitmapToMemoryCache(fd.filePath,BitmapHelper.loadBitmap(fd.filePath));
+                }
+                holder.imageView.setImageBitmap(cache.getBitmapFromMemCache(fd.filePath));
             }
 
-            holder.imageView.setOnClickListener(new ItemImageViewClicker(position));
-            holder.imageView.setOnLongClickListener(new ItemImageViewLongClicker(position));
+            holder.imageView.setTag(R.id.tagId1, fd.filePath);
+            holder.imageView.setOnClickListener(new ItemImageViewClicker());
+            holder.imageView.setOnLongClickListener(new ItemImageViewLongClicker());
             // holder.textView.setText(products.get(position).getTitle());
         }
 
@@ -103,34 +131,46 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private class ItemImageViewLongClicker implements View.OnLongClickListener {
-        private int index;
 
-        public ItemImageViewLongClicker(int i) {
-            this.index = i;
-        }
 
         @Override
         public boolean onLongClick(View view) {
+            String filePath = (String) view.getTag(R.id.tagId1);
+            int index = -1;
+            for (int i = 0; i < fileCatcher.files.size(); i++) {
+                if (fileCatcher.files.get(i).filePath.equals(filePath)) {
+                    index = i;
+                    break;
+                }
+            }
+            if (index == -1) {
+                return true;
+            }
             FileDes fd = fileCatcher.files.get(index);
             if (fd.fileType == FileDes.FILE_TYPE.sys_img || fd.fileType == FileDes.FILE_TYPE.qq_img
                     || fd.fileType == FileDes.FILE_TYPE.wx_img) {
-                new File(fd.filePath).delete();
+                //new File(fd.filePath).delete();//不真的删除
                 fileCatcher.files.remove(index);
-                adapter.notifyDataSetChanged();
+                adapter.notifyItemRemoved(index);
             }
             return true;
         }
     }
 
     private class ItemImageViewClicker implements View.OnClickListener {
-        private int index;
-
-        public ItemImageViewClicker(int i) {
-            this.index = i;
-        }
-
         @Override
         public void onClick(View view) {
+            String filePath = (String) view.getTag(R.id.tagId1);
+            int index = -1;
+            for (int i = 0; i < fileCatcher.files.size(); i++) {
+                if (fileCatcher.files.get(i).filePath.equals(filePath)) {
+                    index = i;
+                    break;
+                }
+            }
+            if (index == -1) {
+                return;
+            }
             FileDes fd = fileCatcher.files.get(index);
             if (fd.fileType == FileDes.FILE_TYPE.sys_img || fd.fileType == FileDes.FILE_TYPE.qq_img
                     || fd.fileType == FileDes.FILE_TYPE.wx_img) {
@@ -200,6 +240,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    List<FileDes> l=null;
     /**
      * 查询好所有文件，然后显示
      */
@@ -208,14 +249,30 @@ public class MainActivity extends AppCompatActivity {
             return;
         Toast.makeText(MainActivity.this, "找到" + fileCatcher.files.size() + "个文件,即将显示!", Toast.LENGTH_SHORT).show();
         Collections.reverse(fileCatcher.files);
-        //adapter
-        adapter = new WaterfallAdapter();
-        recyclerView.setAdapter(adapter);
-        //设置item之间的间隔
-        DividerGridItemDecoration decoration = new DividerGridItemDecoration(this);
-        recyclerView.addItemDecoration(decoration);
+
+       l = new ArrayList<FileDes>();
+        for (FileDes fd : fileCatcher.files) {
+            l.add(fd);
+        }
+        fileCatcher.files.clear();
+        //fileCatcher.files.add(l.get(0));
+        //l.remove(0);
+        adapter.notifyDataSetChanged();
+        h.sendEmptyMessageDelayed(0,100);
     }
 
+    private Handler h=new Handler(){
+        @Override
+        public void handleMessage(Message msg) {
+            if(msg.what==0){
+                for (int i = 0; i < l.size(); i++) {
+                    fileCatcher.files.add(l.get(i));
+                }
+                adapter.notifyItemRangeInserted(1,fileCatcher.files.size()-1);
+            }
+            //
+        }
+    };
 
     //------------------------------------------------------------------------------------------------
 
